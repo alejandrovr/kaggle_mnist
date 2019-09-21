@@ -9,16 +9,19 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-def row2np(row):
+def row2np(row,flat=False):
     np_pic = np.array(row).reshape(28,28)
+    np_pic = np_pic / 255.0 #normalize
+    if flat:
+        np_pic = np_pic.flatten()
     return np_pic
 
-def batchatalize(pd_dataframe,batch_size=100):
+def batchatalize(pd_dataframe,batch_size=100,flat=False):
     batch = []
     batch_rows = pd_dataframe.sample(batch_size)
     for idx, row in batch_rows.iterrows():
         int_label, pixels = row.label, [i for i in row[1:]]
-        np_pic = row2np(pixels)
+        np_pic = row2np(pixels,flat=flat)
         batch.append([np_pic,int_label]) 
     return batch
     
