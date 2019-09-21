@@ -16,8 +16,8 @@ from mnist_newbie.utils import batchatalize
 
 train_csv = '~/Kaggle/mnist_newbie/digit-recognizer/train.csv'
 net = SimpleNet(784, 100, 10) #pixels, hidden cells, output
-n_batches = 100
-lr = 1e-1
+n_batches = 1000
+lr = 1e-2
 device = torch.device("cpu")
 
 criterion = torch.nn.CrossEntropyLoss()
@@ -45,6 +45,16 @@ for i in range(n_batches):
     loss.backward()
     optimizer.step()
     optimizer.zero_grad()
+    
+    pred_idx = yhat.argmax(dim=1).detach().cpu().numpy().flatten()
+    real_idx = train_y.detach().cpu().numpy().flatten()
+    
+    count = 0
+    for yh, y in zip(pred_idx,real_idx):
+        print(yh, y)
+        if yh == y:
+            count+=1
+    print('Accuracy:',count/len(real_idx))
     
 model_int = [int(path.split('-')[-1].split('.')[0]) for path in glob.glob('models/fc_net-*.torch')]
 next_idx = 0 if len(model_int)==0 else sorted(model_int)[-1] + 1
