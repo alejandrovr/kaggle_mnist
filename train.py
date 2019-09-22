@@ -11,9 +11,16 @@ import pandas as pd
 import numpy as np
 import glob
 
-from mnist_newbie.net import SimpleNet
-from mnist_newbie.utils import batchatalize
+from mnist_newbie.net import SimpleNet, SimpleCNN
+from mnist_newbie.utils import batchatalize, row2np
 
+#TODO:
+#Changing lr to 1e-3 after first 1000 batches improves accuracy
+#Equilibrate batches
+#Transformations
+#Masking
+#CNN
+#Nets with different layers
 
 def get_accuracy(pred_idx, real_idx):
     count = 0
@@ -24,15 +31,44 @@ def get_accuracy(pred_idx, real_idx):
     return count/len(real_idx)
 
 
+def make_submission(model, test_csv):
+    #ImageId,Label
+    #1,3
+    #... 
+    device = torch.device("cpu")
+    model = model.eval()
+    model.to(device)
+    id_label = []
+
+    df = pd.read_csv(test_csv)
+    for idx_row, row in df.iterrows():
+        npimage = row2np(row,flat=False)
+        npimage = npimage[np.newaxis, np.newaxis,:]
+        test_x = torch.from_numpy(npimage).float()  
+        test_x.to(device)
+        yhat = model(test_x)        
+        pred_label = yhat.argmax(dim=1).detach().cpu().numpy().flatten().item()
+        id_label.append((idx_row + 1, pred_label))
+        
+    submission_df = pd.DataFrame.from_records(id_label)
+    submission_df.columns = ['ImageId', 'Label']
+    submission_df.to_csv('my_submission.csv',index=False)
+    
+    return submission_df
+        
+        
 train_csv = '~/Kaggle/mnist_newbie/digit-recognizer/train.csv'
 test_csv = '~/Kaggle/mnist_newbie/digit-recognizer/test.csv'
-net = SimpleNet(784, 100, 10) #pixels, hidden cells, output
-n_batches = 1000
+#net = SimpleNet(784, 500, 10) #pixels, hidden cells, output
+
+net = SimpleCNN()
+n_batches = 2500
 lr = 1e-1
 device = torch.device("cpu")
 
 criterion = torch.nn.CrossEntropyLoss()
 optimizer = torch.optim.SGD(net.parameters(), lr=lr)
+scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[500,1000,1500,2000], gamma=0.1)
 df = pd.read_csv(train_csv)
 
 msk = np.random.rand(len(df)) < 0.8
@@ -49,21 +85,22 @@ net.to(device)
 for i in range(n_batches):
     net = net.train()
     print(i,'/',n_batches)
-    batch = batchatalize(pd_train, batch_size=100,flat=True)
+    batch = batchatalize(pd_train, batch_size=100,flat=False)
     train_x = np.array([px_val for px_val, _ in batch])
     train_y = np.array([label for _, label in batch])
 
+    train_x = train_x[:,np.newaxis, :]
     train_x = torch.from_numpy(train_x).float()
     train_y = torch.from_numpy(train_y).long()
     
     train_x.to(device)
     train_y.to(device)
-    
     yhat = net(train_x)
     loss = criterion(yhat,train_y)
     print('Loss',loss.item())
     loss.backward()
     optimizer.step()
+    scheduler.step()
     optimizer.zero_grad()
     
     pred_idx = yhat.argmax(dim=1).detach().cpu().numpy().flatten()
@@ -74,10 +111,11 @@ for i in range(n_batches):
     if i % 10 == 0:
         net = net.eval()
         print(i,'/',n_batches)
-        test_batch = batchatalize(pd_test, batch_size=100,flat=True)
+        test_batch = batchatalize(pd_test, batch_size=1000,flat=False)
         test_x = np.array([px_val for px_val, _ in test_batch])
         test_y = np.array([label for _, label in test_batch])
     
+        test_x = test_x[:,np.newaxis, :]
         test_x = torch.from_numpy(test_x).float()
         test_y = torch.from_numpy(test_y).long()
         
@@ -103,3 +141,6 @@ plt.show()
 model_int = [int(path.split('-')[-1].split('.')[0]) for path in glob.glob('models/fc_net-*.torch')]
 next_idx = 0 if len(model_int)==0 else sorted(model_int)[-1] + 1
 torch.save(net.state_dict(), 'models/fc_net-{}.torch'.format(next_idx))
+
+
+make_submission(net, 'digit-recognizer/test.csv')
