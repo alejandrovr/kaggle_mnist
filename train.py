@@ -11,16 +11,12 @@ import pandas as pd
 import numpy as np
 import glob
 
-from mnist_newbie.net import SimpleNet, SimpleCNN
+from mnist_newbie.net import SimpleNet, SimpleCNN, DeeperCNN
 from mnist_newbie.utils import batchatalize, row2np
 
 #TODO:
-#Changing lr to 1e-3 after first 1000 batches improves accuracy
-#Equilibrate batches
 #Transformations
 #Masking
-#CNN
-#Nets with different layers
 
 def get_accuracy(pred_idx, real_idx):
     count = 0
@@ -60,8 +56,8 @@ def make_submission(model, test_csv):
 train_csv = '~/Kaggle/mnist_newbie/digit-recognizer/train.csv'
 test_csv = '~/Kaggle/mnist_newbie/digit-recognizer/test.csv'
 #net = SimpleNet(784, 500, 10) #pixels, hidden cells, output
-
-net = SimpleCNN()
+#net = SimpleCNN()
+net = DeeperCNN()
 n_batches = 2500
 lr = 1e-1
 device = torch.device("cpu")
@@ -85,7 +81,7 @@ net.to(device)
 for i in range(n_batches):
     net = net.train()
     print(i,'/',n_batches)
-    batch = batchatalize(pd_train, batch_size=100,flat=False)
+    batch = batchatalize(pd_train, batch_size=1000,flat=False)
     train_x = np.array([px_val for px_val, _ in batch])
     train_y = np.array([label for _, label in batch])
 

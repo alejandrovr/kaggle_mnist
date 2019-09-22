@@ -69,3 +69,46 @@ class SimpleCNN(torch.nn.Module):
         x = self.fc2(x)
         #print('4',x.size())        
         return(x)
+        
+        
+class DeeperCNN(torch.nn.Module):
+    
+    #Our batch shape for input x is (3, 32, 32)
+    
+    def __init__(self):
+        super(DeeperCNN, self).__init__()
+        
+        #Input channels = 3, output channels = 18
+        self.conv1 = torch.nn.Conv2d(1, 18, kernel_size=3, stride=1, padding=0)
+        self.conv2 = torch.nn.Conv2d(18, 32, kernel_size=3, stride=1, padding=0)
+        self.pool = torch.nn.MaxPool2d(kernel_size=2, stride=2, padding=0)
+        
+        #4608 input features, 64 output features (see sizing flow below)
+        self.fc1 = torch.nn.Linear(32 * 12 * 12, 64)
+        
+        #64 input features, 10 output features for our 10 defined classes
+        self.fc2 = torch.nn.Linear(64, 10)
+        
+    def forward(self, x):
+        x = F.relu(self.conv1(x))   
+        #print('0',x.size())
+        x = F.relu(self.conv2(x))
+        #print('1',x.size())
+        x = self.pool(x)
+        #print('1.5',x.size())
+        x = x.view(-1, 32 * 12 * 12)
+        #print('2',x.size())        
+        x = F.relu(self.fc1(x))
+        #print('3',x.size())        
+        x = self.fc2(x)
+        #print('4',x.size())        
+        return(x)
+        
+        
+if __name__ == '__main__':
+    import numpy as np
+    fake_input = np.random.rand(5,1,28,28)
+    fake_input = torch.from_numpy(fake_input).float()
+    net = DeeperCNN()
+    output = net(fake_input)
+    
