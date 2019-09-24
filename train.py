@@ -17,6 +17,7 @@ from mnist_newbie.utils import batchatalize, row2np
 #TODO:
 #Transformations
 #Masking
+#softmax at the end?
 
 def get_accuracy(pred_idx, real_idx):
     count = 0
@@ -67,7 +68,7 @@ optimizer = torch.optim.SGD(net.parameters(), lr=lr)
 scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[500,1000,1500,2000], gamma=0.1)
 df = pd.read_csv(train_csv)
 
-msk = np.random.rand(len(df)) < 0.8
+msk = np.random.rand(len(df)) < 0.99
 pd_train = df[msk]
 pd_test = df[~msk]
 print('Training size:',len(pd_train))
@@ -81,7 +82,7 @@ net.to(device)
 for i in range(n_batches):
     net = net.train()
     print(i,'/',n_batches)
-    batch = batchatalize(pd_train, batch_size=1000,flat=False)
+    batch = batchatalize(pd_train, batch_size=100,flat=False)
     train_x = np.array([px_val for px_val, _ in batch])
     train_y = np.array([label for _, label in batch])
 
@@ -129,6 +130,7 @@ for i in range(n_batches):
         print('\n\nTEST accuracy:', test_acc)
         test_log.append(test_acc)
     
+#%matplotlib auto
 import matplotlib.pyplot as plt
 plt.plot(train_log)  
 plt.plot(test_log)   
