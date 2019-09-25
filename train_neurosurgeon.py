@@ -82,7 +82,7 @@ n_batches = 1000 #2500
 device = torch.device("cpu")
 
 criterion = torch.nn.CrossEntropyLoss()
-optimizer_ft = optim.SGD(net.fc.parameters(), lr=0.1)
+optimizer_ft = optim.SGD(net.fc.parameters(), lr=0.01)
 exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=100, gamma=0.99)
 df = pd.read_csv(train_csv)
 
@@ -100,7 +100,7 @@ net.to(device)
 for i in range(n_batches):
     net = net.train()
     print(i,'/',n_batches)
-    batch = batchatalize(pd_train, batch_size=10,flat=False,tile=True)
+    batch = batchatalize(pd_train, batch_size=10,flat=False,zoom=True)
     train_x = np.array([px_val for px_val, _ in batch])
     train_y = np.array([label for _, label in batch])
 

@@ -8,6 +8,7 @@ Created on Sat Sep 21 12:15:44 2019
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from scipy import ndimage, misc
 
 def row2np(row,flat=False):
     np_pic = np.array(row).reshape(28,28)
@@ -16,7 +17,7 @@ def row2np(row,flat=False):
         np_pic = np_pic.flatten()
     return np_pic
 
-def batchatalize(pd_dataframe,batch_size=100,flat=False,tile=False):
+def batchatalize(pd_dataframe,batch_size=100,flat=False,tile=False,zoom=False):
     batch = []
     batch_rows = pd_dataframe.sample(batch_size)
     for idx, row in batch_rows.iterrows():
@@ -24,6 +25,8 @@ def batchatalize(pd_dataframe,batch_size=100,flat=False,tile=False):
         np_pic = row2np(pixels,flat=flat)
         if tile:
             np_pic = np.tile(np_pic, (8,8))
+        if zoom:
+            np_pic = ndimage.zoom(np_pic, 8.0)
         batch.append([np_pic,int_label]) 
     return batch
     
