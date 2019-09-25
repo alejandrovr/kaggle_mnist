@@ -16,12 +16,14 @@ def row2np(row,flat=False):
         np_pic = np_pic.flatten()
     return np_pic
 
-def batchatalize(pd_dataframe,batch_size=100,flat=False):
+def batchatalize(pd_dataframe,batch_size=100,flat=False,tile=False):
     batch = []
     batch_rows = pd_dataframe.sample(batch_size)
     for idx, row in batch_rows.iterrows():
         int_label, pixels = row.label, [i for i in row[1:]]
         np_pic = row2np(pixels,flat=flat)
+        if tile:
+            np_pic = np.tile(np_pic, (8,8))
         batch.append([np_pic,int_label]) 
     return batch
     
