@@ -11,14 +11,24 @@ import pandas as pd
 import numpy as np
 import glob
 import matplotlib.pyplot as plt
+import random
 
-from mnist_newbie.net import SimpleNet, SimpleCNN, DeeperCNN
+from mnist_newbie.net import SimpleNet, SimpleCNN, DeeperCNN, DeeperCNN2
 from mnist_newbie.utils import batchatalize, row2np
 
 #TODO:
 #Transformations
 #Masking
 #softmax at the end?
+
+def fuse_batches(nightmare_batch, failing_examples, perc_repl=0.2):
+    original_size = len(nightmare_batch)
+    fail_size = len(failing_examples)
+    topN = int(original_size * perc_repl)
+    sampleK = topN if topN < fail_size else fail_size
+    nightmare_batch[topN:] += random.sample(failing_examples,sampleK)
+    nightmare_batch = nightmare_batch[:original_size]
+    return nightmare_batch
 
 def get_accuracy(pred_idx, real_idx):
     count = 0
@@ -59,7 +69,7 @@ train_csv = '~/Kaggle/mnist_newbie/digit-recognizer/train.csv'
 test_csv = '~/Kaggle/mnist_newbie/digit-recognizer/test.csv'
 #net = SimpleNet(784, 500, 10) #pixels, hidden cells, output
 #net = SimpleCNN()
-net = DeeperCNN()
+net = DeeperCNN2()
 n_batches = 2500 #2500
 lr = 1e-1
 device = torch.device("cpu")
@@ -78,12 +88,16 @@ print('Test size:',len(pd_test))
 train_log = []
 test_log = []
 
+#initialize nightmare batch with random sample
+nightmare_batch = batchatalize(pd_train, batch_size=100,flat=False)
+
 net.to(device)
 
 for i in range(n_batches):
     net = net.train()
     print(i,'/',n_batches)
-    batch = batchatalize(pd_train, batch_size=100,flat=False)
+    batch = batchatalize(pd_train, batch_size=100, flat=False)
+    batch += random.sample(nightmare_batch, 50)
     train_x = np.array([px_val for px_val, _ in batch])
     train_y = np.array([label for _, label in batch])
 
@@ -103,6 +117,10 @@ for i in range(n_batches):
     
     pred_idx = yhat.argmax(dim=1).detach().cpu().numpy().flatten()
     real_idx = train_y.detach().cpu().numpy().flatten()
+    failing_examples = np.where(pred_idx!=real_idx)[0].tolist()
+    failing_examples = [batch[i] for i in failing_examples]
+    
+    nightmare_batch = fuse_batches(nightmare_batch, failing_examples, perc_repl=0.5)
     print('Accuracy', get_accuracy(pred_idx, real_idx))
     train_log.append(get_accuracy(pred_idx, real_idx))
     
