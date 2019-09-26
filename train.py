@@ -10,6 +10,7 @@ import torch
 import pandas as pd
 import numpy as np
 import glob
+import matplotlib.pyplot as plt
 
 from mnist_newbie.net import SimpleNet, SimpleCNN, DeeperCNN
 from mnist_newbie.utils import batchatalize, row2np
@@ -59,7 +60,7 @@ test_csv = '~/Kaggle/mnist_newbie/digit-recognizer/test.csv'
 #net = SimpleNet(784, 500, 10) #pixels, hidden cells, output
 #net = SimpleCNN()
 net = DeeperCNN()
-n_batches = 1000 #2500
+n_batches = 2500 #2500
 lr = 1e-1
 device = torch.device("cpu")
 
@@ -68,7 +69,7 @@ optimizer = torch.optim.SGD(net.parameters(), lr=lr)
 scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[500,1000,1500,2000], gamma=0.1)
 df = pd.read_csv(train_csv)
 
-msk = np.random.rand(len(df)) < 0.95
+msk = np.random.rand(len(df)) < 0.98
 pd_train = df[msk]
 pd_test = df[~msk]
 print('Training size:',len(pd_train))
@@ -130,12 +131,50 @@ for i in range(n_batches):
         print('\n\nTEST accuracy:', test_acc)
         test_log.append(test_acc)
     
+    
+#CHECK WHICH IMAGES ARE MISCLASSIFIED
+net = net.eval()
+print(i,'/',n_batches)
+test_batch = batchatalize(pd_test, batch_size=len(pd_test),flat=False)
+test_x = np.array([px_val for px_val, _ in test_batch])
+test_y = np.array([label for _, label in test_batch])
+
+test_x = test_x[:,np.newaxis, :]
+test_x = torch.from_numpy(test_x).float()
+test_y = torch.from_numpy(test_y).long()
+
+test_x.to(device)
+test_y.to(device)
+
+yhat = net(test_x)
+pred_idx = yhat.argmax(dim=1).detach().cpu().numpy().flatten()
+real_idx = test_y.detach().cpu().numpy().flatten()
+
+counter = 0
+misclassified_idx = []
+for pi,ri in zip(pred_idx,real_idx):
+    if pi != ri:
+        misclassified_idx.append((counter,pi,ri))
+    counter+=1
+        
+for failed in misclassified_idx:
+    idx, pred, reality = failed
+    plt.imshow(test_x[idx][0])
+    plt.title('{}_{}'.format(pred,reality))
+    plt.show()
+    input('Next?')
+    plt.close()
+    
+
 #%matplotlib auto
-import matplotlib.pyplot as plt
 plt.plot(train_log)  
 plt.plot(test_log)   
 plt.show()
     
+
+
+
+
 model_int = [int(path.split('-')[-1].split('.')[0]) for path in glob.glob('models/fc_net-*.torch')]
 next_idx = 0 if len(model_int)==0 else sorted(model_int)[-1] + 1
 torch.save(net.state_dict(), 'models/fc_net-{}.torch'.format(next_idx))
