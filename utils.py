@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy import ndimage, misc
+import random
 
 def row2np(row,flat=False):
     np_pic = np.array(row).reshape(28,28)
@@ -28,7 +29,15 @@ def batchatalize(pd_dataframe,batch_size=100,flat=False,tile=False,zoom=False):
         if zoom:
             np_pic = ndimage.zoom(np_pic, 8.0)
         batch.append([np_pic,int_label]) 
-    return batch
+        
+    return batch   
+    final_batch = []
+    for b in batch:
+        for j in range(np.random.randint(4)):
+            b[0] = np.rot90(b[0])
+        final_batch.append([b[0],b[1]])
+        
+    return final_batch
     
 if __name__ == "__main__":
     train_csv = '~/Kaggle/mnist_newbie/digit-recognizer/train.csv'

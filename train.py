@@ -26,7 +26,8 @@ def fuse_batches(nightmare_batch, failing_examples, perc_repl=0.2):
     fail_size = len(failing_examples)
     topN = int(original_size * perc_repl)
     sampleK = topN if topN < fail_size else fail_size
-    nightmare_batch[topN:] += random.sample(failing_examples,sampleK)
+    nightmare_batch = nightmare_batch[topN:]
+    nightmare_batch += random.sample(failing_examples,sampleK)
     nightmare_batch = nightmare_batch[:original_size]
     return nightmare_batch
 
@@ -97,7 +98,10 @@ for i in range(n_batches):
     net = net.train()
     print(i,'/',n_batches)
     batch = batchatalize(pd_train, batch_size=100, flat=False)
-    batch += random.sample(nightmare_batch, 50)
+    nightmares = random.sample(nightmare_batch, len(nightmare_batch))
+    plt.imshow(nightmares[0][0])
+    plt.show()
+    batch += random.sample(nightmares, len(nightmares))
     train_x = np.array([px_val for px_val, _ in batch])
     train_y = np.array([label for _, label in batch])
 
