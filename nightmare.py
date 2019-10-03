@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Sat Sep 28 00:31:16 2019
+Created on Thu Oct  3 23:55:00 2019
 
 @author: alejandro
 """
@@ -17,8 +17,11 @@ from mnist_newbie.net import DeeperCNN_VS, SimpleCNN, DeeperCNN, DeeperCNN2
 from mnist_newbie.utils import batchatalize, row2np
 
 
-#TODO:
-#ADAM, lr annealing, nightmare batches, different batch sizes
+def fuse_batches(nightmare_batch, failing_examples):
+    nightmare_batch = nightmare_batch + failing_examples
+    nightmare_batch = nightmare_batch[len(failing_examples):]
+    return nightmare_batch
+
 
 def get_accuracy(pred_idx, real_idx):
     count = 0
@@ -130,6 +133,8 @@ pd_test = df[~msk]
 print('Training size:',len(pd_train))
 print('Test size:',len(pd_test))
 
+
+
 final_Test_all = []
 test_logs = []
 for chosen_digit in range(10):
@@ -144,12 +149,19 @@ for chosen_digit in range(10):
     scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[500,1000,1500,2000], gamma=0.5)
     net.to(device)
     
+    nightmare_batch = batchatalize(pd_train, batch_size=1000, flat=False, zoom=False)
+    nbatch1 = [[i[0], 1]  for i in nightmare_batch if i[1]==chosen_digit]
+    nbatch1_notone = [[i[0], 0] for i in nightmare_batch if i[1]!=chosen_digit][:len(nbatch1)]
+    nightmare_batch = nbatch1 + nbatch1_notone    
+    
+    
     for i in range(n_batches):
         net = net.train()
-        batch = batchatalize(pd_train, batch_size=50, flat=False, zoom=True)
+        batch = batchatalize(pd_train, batch_size=50, flat=False, zoom=False)
         batch1 = [[i[0], 1]  for i in batch if i[1]==chosen_digit]
         batch1_notone = [[i[0], 0] for i in batch if i[1]!=chosen_digit][:len(batch1)]
         batch = batch1 + batch1_notone
+        batch = batch + random.sample(nightmare_batch,len(batch))
         
         train_x = np.array([px_val for px_val, _ in batch])
         train_y = np.array([label for _, label in batch])
@@ -171,12 +183,16 @@ for chosen_digit in range(10):
         
         pred_idx = yhat.argmax(dim=1).detach().cpu().numpy().flatten()
         real_idx = train_y.detach().cpu().numpy().flatten()
+        broken_idx = np.where(pred_idx!=real_idx)[0].flatten()
+        failed = [batch[idx] for idx in broken_idx]
+        nightmare_batch = fuse_batches(nightmare_batch, failed)
+        
         print('Acc:', get_accuracy(pred_idx, real_idx),'|',i,'/',n_batches)
         train_log.append(get_accuracy(pred_idx, real_idx))
         
         if i % 10 == 0:
             net = net.eval()
-            test_batch = batchatalize(pd_test, batch_size=100,flat=False)
+            test_batch = batchatalize(pd_test, batch_size=400,flat=False)
             batch1 = [[i[0], 1]  for i in test_batch if i[1]==chosen_digit]
             batch1_notone = [[i[0], 0] for i in test_batch if i[1]!=chosen_digit][:len(batch1)]
             test_batch = batch1 + batch1_notone        

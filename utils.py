@@ -27,6 +27,7 @@ def batchatalize(pd_dataframe,batch_size=100,flat=False,tile=False,zoom=False):
         if tile:
             np_pic = np.tile(np_pic, (8,8))
         if zoom:
+            0/0
             np_pic = ndimage.zoom(np_pic, 8.0)
         batch.append([np_pic,int_label]) 
         
