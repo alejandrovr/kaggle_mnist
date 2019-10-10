@@ -13,7 +13,7 @@ import glob
 import matplotlib.pyplot as plt
 import random
 
-from mnist_newbie.net import DeeperCNN_VS, SimpleCNN, DeeperCNN, DeeperCNN2
+from mnist_newbie.net import DeeperCNN_VS, SimpleCNN, DeeperCNN, DeeperCNN2, EvenDeeperCNN_VS
 from mnist_newbie.utils import batchatalize, row2np
 
 
@@ -22,6 +22,10 @@ def fuse_batches(nightmare_batch, failing_examples):
     nightmare_batch = nightmare_batch[len(failing_examples):]
     return nightmare_batch
 
+def still_patient(log, threshold=0.005, lastN=10):
+    if np.std(log[-lastN:]) < threshold and len(log)>lastN and np.mean(log[-lastN:])>0.991:
+        return False
+    return True
 
 def get_accuracy(pred_idx, real_idx):
     count = 0
@@ -32,60 +36,19 @@ def get_accuracy(pred_idx, real_idx):
     return count/len(real_idx)
 
 
-def make_submission(test_csv,view=False):
+def make_submission(test_csv,run=0,view=False):
+    import statistics
     device = torch.device("cpu")
-    net0 = DeeperCNN_VS()
-    net0.load_state_dict(torch.load('models/net0_vsALL.torch'))
-    net0.eval()
+    all_nets_kfolds = []
     
-    net1 = DeeperCNN_VS()
-    net1.load_state_dict(torch.load('models/net1_vsALL.torch'))
-    net1.eval()
-
-    net2 = DeeperCNN_VS()
-    net2.load_state_dict(torch.load('models/net2_vsALL.torch'))
-    net2.eval()
-
-    net3 = DeeperCNN_VS()
-    net3.load_state_dict(torch.load('models/net3_vsALL.torch'))
-    net3.eval()
-
-    net4 = DeeperCNN_VS()
-    net4.load_state_dict(torch.load('models/net4_vsALL.torch'))
-    net4.eval()
-
-    net5 = DeeperCNN_VS()
-    net5.load_state_dict(torch.load('models/net5_vsALL.torch'))
-    net5.eval()
-
-    net6 = DeeperCNN_VS()
-    net6.load_state_dict(torch.load('models/net6_vsALL.torch'))
-    net6.eval()
-
-    net7 = DeeperCNN_VS()
-    net7.load_state_dict(torch.load('models/net7_vsALL.torch'))
-    net7.eval()
-
-    net8 = DeeperCNN_VS()
-    net8.load_state_dict(torch.load('models/net8_vsALL.torch'))
-    net8.eval() 
-    
-    net9 = DeeperCNN_VS()
-    net9.load_state_dict(torch.load('models/net9_vsALL.torch'))
-    net9.eval()     
-    
-    net0.to(device)
-    net1.to(device)
-    net2.to(device)
-    net3.to(device)
-    net4.to(device)
-    net5.to(device)
-    net6.to(device)
-    net7.to(device)
-    net8.to(device)
-    net9.to(device)
+    for net_weights in glob.glob('models/net_kfold_run_{}_*_*.torch'.format(run)):
+        net = EvenDeeperCNN_VS()
+        net.load_state_dict(torch.load(net_weights))
+        net = net.eval()
+        net = net.to(device)
+        all_nets_kfolds.append(net)
+        
     id_label = []
-
     df = pd.read_csv(test_csv)
     total_Test = len(df)
     for idx_row, row in df.iterrows():
@@ -94,20 +57,18 @@ def make_submission(test_csv,view=False):
         npimage = npimage[np.newaxis, np.newaxis,:]
         test_x = torch.from_numpy(npimage).float()  
         test_x.to(device)
-        yhat0 = net0(test_x).detach().cpu().numpy()
-        yhat1 = net1(test_x).detach().cpu().numpy()
-        yhat2 = net2(test_x).detach().cpu().numpy()
-        yhat3 = net3(test_x).detach().cpu().numpy()
-        yhat4 = net4(test_x).detach().cpu().numpy()
-        yhat5 = net5(test_x).detach().cpu().numpy()
-        yhat6 = net6(test_x).detach().cpu().numpy()
-        yhat7 = net7(test_x).detach().cpu().numpy()
-        yhat8 = net8(test_x).detach().cpu().numpy()
-        yhat9 = net9(test_x).detach().cpu().numpy()
         
-        result = [yhat0, yhat1, yhat2, yhat3, yhat4, yhat5, yhat6, yhat7, yhat8, yhat9]
-        result = np.array(result)[:,0,:]
-        pred_label = np.argmax(result[:,1])
+        yiii_hats = []
+        for net_kfold in all_nets_kfolds:
+            yhat = net_kfold(test_x).detach().cpu().numpy()
+            yiii_hats.append(yhat)
+            
+        result = np.array(yiii_hats)[:,0,:]
+        pred_label_kfolds = np.argmax(result,axis=1)
+        try:
+            pred_label = statistics.mode(pred_label_kfolds)
+        except:
+            pred_label = pred_label_kfolds[0] #TODO:use model with highest accu
         if view:
             plt.close()
             print(pred_label,' | ',result)
@@ -126,42 +87,36 @@ def make_submission(test_csv,view=False):
 train_csv = '~/Kaggle/mnist_newbie/digit-recognizer/train.csv'
 test_csv = '~/Kaggle/mnist_newbie/digit-recognizer/test.csv'
 
-df = pd.read_csv(train_csv)
-msk = np.random.rand(len(df)) < 0.97
-pd_train = df[msk]
-pd_test = df[~msk]
-print('Training size:',len(pd_train))
-print('Test size:',len(pd_test))
-
-
-
 final_Test_all = []
 test_logs = []
-for chosen_digit in range(10):
+
+df = pd.read_csv(train_csv)
+from sklearn.model_selection import KFold
+kf = KFold(n_splits=3)
+splits = kf.get_n_splits(df)
+k_fold_index = 0
+run = 1
+for train_index, test_index in kf.split(df): #each run is a k-fold
+    
+    pd_train = df.iloc[train_index]
+    pd_test = df.iloc[test_index]
+    print('Training size:',len(pd_train))
+    print('Test size:',len(pd_test))
+
     train_log = []
-    test_log = []
-    net = DeeperCNN_VS()
-    n_batches = 2500 #2500
+    test_log = [0.5]
+    net = EvenDeeperCNN_VS()
+    n_batches = 550 #2500
     lr = 1e-1
     device = torch.device("cpu")
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(net.parameters(), lr=lr)
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[500,1000,1500,2000], gamma=0.5)
-    net.to(device)
-    
-    nightmare_batch = batchatalize(pd_train, batch_size=1000, flat=False, zoom=False)
-    nbatch1 = [[i[0], 1]  for i in nightmare_batch if i[1]==chosen_digit]
-    nbatch1_notone = [[i[0], 0] for i in nightmare_batch if i[1]!=chosen_digit][:len(nbatch1)]
-    nightmare_batch = nbatch1 + nbatch1_notone    
-    
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[1000,2000,3000,4000], gamma=0.1)
+    net.to(device)   
     
     for i in range(n_batches):
         net = net.train()
-        batch = batchatalize(pd_train, batch_size=50, flat=False, zoom=False)
-        batch1 = [[i[0], 1]  for i in batch if i[1]==chosen_digit]
-        batch1_notone = [[i[0], 0] for i in batch if i[1]!=chosen_digit][:len(batch1)]
-        batch = batch1 + batch1_notone
-        batch = batch + random.sample(nightmare_batch,len(batch))
+        batch = batchatalize(pd_train, batch_size=300,flat=False, zoom=False)
         
         train_x = np.array([px_val for px_val, _ in batch])
         train_y = np.array([label for _, label in batch])
@@ -185,17 +140,13 @@ for chosen_digit in range(10):
         real_idx = train_y.detach().cpu().numpy().flatten()
         broken_idx = np.where(pred_idx!=real_idx)[0].flatten()
         failed = [batch[idx] for idx in broken_idx]
-        nightmare_batch = fuse_batches(nightmare_batch, failed)
         
-        print('Acc:', get_accuracy(pred_idx, real_idx),'|',i,'/',n_batches)
+        print('Acc:', get_accuracy(pred_idx, real_idx),'|',i,'/',n_batches,'| N=',len(batch),k_fold_index)
         train_log.append(get_accuracy(pred_idx, real_idx))
         
-        if i % 10 == 0:
+        if i % 50 == 0:
             net = net.eval()
-            test_batch = batchatalize(pd_test, batch_size=400,flat=False)
-            batch1 = [[i[0], 1]  for i in test_batch if i[1]==chosen_digit]
-            batch1_notone = [[i[0], 0] for i in test_batch if i[1]!=chosen_digit][:len(batch1)]
-            test_batch = batch1 + batch1_notone        
+            test_batch = batchatalize(pd_test, batch_size=300, flat=False)
             
             test_x = np.array([px_val for px_val, _ in test_batch])
             test_y = np.array([label for _, label in test_batch])
@@ -214,55 +165,23 @@ for chosen_digit in range(10):
             pred_idx = yhat.argmax(dim=1).detach().cpu().numpy().flatten()
             real_idx = test_y.detach().cpu().numpy().flatten()
             test_acc = get_accuracy(pred_idx, real_idx)
-            print('\n\nTEST accuracy:', test_acc)
+            print('\n\nTEST accuracy:', test_acc,' | Best:',max(test_log))
             test_log.append(test_acc)
-        
-        
-    #CHECK WHICH IMAGES ARE MISCLASSIFIED
-    net = net.eval()
-    print(i,'/',n_batches)
-    test_batch = batchatalize(pd_test, batch_size=100,flat=False)
-    batch1 = [[i[0], 1]  for i in test_batch if i[1]==chosen_digit]
-    batch1_notone = [[i[0], 0] for i in test_batch if i[1]!=chosen_digit][:len(batch1)]
-    test_batch = batch1 + batch1_notone      
+            if test_acc == 1.0:
+                break
+            if not still_patient(test_log, threshold=0.005, lastN=5):
+                break
     
-    test_x = np.array([px_val for px_val, _ in test_batch])
-    test_y = np.array([label for _, label in test_batch])
-    
-    test_x = test_x[:,np.newaxis, :]
-    test_x = torch.from_numpy(test_x).float()
-    test_y = torch.from_numpy(test_y).long()
-    
-    test_x.to(device)
-    test_y.to(device)
-    
-    yhat = net(test_x)
-    pred_idx = yhat.argmax(dim=1).detach().cpu().numpy().flatten()
-    real_idx = test_y.detach().cpu().numpy().flatten()
-    
-    counter = 0
-    misclassified_idx = []
-    for pi,ri in zip(pred_idx,real_idx):
-        if pi != ri:
-            misclassified_idx.append((counter,pi,ri))
-        counter+=1
-            
-    print('Predicted {} were wrong. Total tested: {}'.format(misclassified_idx,counter))
-    final_Test_all.append((chosen_digit,misclassified_idx,counter))    
-    
-    #%matplotlib auto
-    #plt.plot(train_log)  
-    plt.plot(test_log)   
-    plt.show()
     test_logs.append((train_log,test_log))
-    torch.save(net.state_dict(), 'models/net{}_vsALL.torch'.format(chosen_digit))
-    
+    final_acc = int(np.mean([i for i in test_log[-10:]]) * 100)
+    torch.save(net.state_dict(), 'models/net_kfold_run_{}_{}_{}.torch'.format(run,final_acc,k_fold_index))
+    k_fold_index += 1
 
-for _, test_log in test_logs:
+for train_log, test_log in test_logs:
     plt.plot(test_log)   
     plt.show()
-    plt.close()
+
     
     
     
-make_submission('digit-recognizer/test.csv', view=False)
+make_submission('digit-recognizer/test.csv', run=run, view=False)

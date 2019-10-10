@@ -97,25 +97,60 @@ class DeeperCNN_VS(torch.nn.Module):
     def __init__(self):
         super(DeeperCNN_VS, self).__init__()
         #Input channels = 3, output channels = 18
-        self.conv1 = torch.nn.Conv2d(1, 32, kernel_size=8, stride=1, padding=0)
+        self.conv1 = torch.nn.Conv2d(1, 32, kernel_size=4, stride=1, padding=0)
         self.pool1 = torch.nn.MaxPool2d(kernel_size=3, stride=1, padding=0)
         self.conv2 = torch.nn.Conv2d(32, 96, kernel_size=3, stride=1, padding=0)
         self.pool2 = torch.nn.MaxPool2d(kernel_size=2, stride=2, padding=0)
-        self.fc1 = torch.nn.Linear(96 * 8 * 8, 512)
-        self.fc2 = torch.nn.Linear(512, 2)
+        self.fc1 = torch.nn.Linear(96 * 10 * 10, 1024)
+        self.fc2 = torch.nn.Linear(1024, 2)
         
     def forward(self, x):
         x = self.pool1(F.relu(self.conv1(x)))
+        #print(x.shape)
         x = self.pool2(F.relu(self.conv2(x)))
-        x = x.view(-1, 96 * 8 * 8)
+        #print(x.shape)
+        x = x.view(-1, 96 * 10 * 10)
+        #print(x.shape)
         x = F.relu(self.fc1(x))       
+        #print(x.shape)
         x = self.fc2(x)
+        #print(x.shape)
         return(x)        
+        
+        
+class EvenDeeperCNN_VS(torch.nn.Module):
+    def __init__(self):
+        super(EvenDeeperCNN_VS, self).__init__()
+        #Input channels = 3, output channels = 18
+        self.conv1 = torch.nn.Conv2d(1, 32, kernel_size=4, stride=1, padding=0)
+        self.pool1 = torch.nn.MaxPool2d(kernel_size=3, stride=1, padding=0)
+        self.conv2 = torch.nn.Conv2d(32, 96, kernel_size=3, stride=1, padding=0)
+        self.pool2 = torch.nn.MaxPool2d(kernel_size=2, stride=2, padding=0)
+        self.conv3 = torch.nn.Conv2d(96, 32, kernel_size=3, stride=1, padding=0)
+        self.pool3 = torch.nn.MaxPool2d(kernel_size=2, stride=2, padding=0)        
+        self.fc1 = torch.nn.Linear(32 * 4 * 4, 1024)
+        self.fc2 = torch.nn.Linear(1024, 10)
+        
+    def forward(self, x):
+        x = self.pool1(F.relu(self.conv1(x)))
+        #print(x.shape)
+        x = self.pool2(F.relu(self.conv2(x)))
+        #print(x.shape)
+        x = self.pool3(F.relu(self.conv3(x)))        
+        #print(x.shape)
+        x = x.view(-1, 32 * 4 * 4)
+        #print(x.shape)
+        x = F.relu(self.fc1(x))       
+        #print(x.shape)
+        #x = torch.nn.Sigmoid()(self.fc2(x))
+        x = self.fc2(x)
+        #print(x.shape)
+        return(x)           
         
 if __name__ == '__main__':
     import numpy as np
     fake_input = np.random.rand(5,1,28,28)
     fake_input = torch.from_numpy(fake_input).float()
-    net = DeeperCNN2()
+    net = EvenDeeperCNN_VS()
     output = net(fake_input)
     
