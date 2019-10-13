@@ -23,7 +23,7 @@ def fuse_batches(nightmare_batch, failing_examples):
     return nightmare_batch
 
 def still_patient(log, threshold=0.005, lastN=10):
-    if np.std(log[-lastN:]) < threshold and len(log)>lastN and np.mean(log[-lastN:])>0.991:
+    if np.std(log[-lastN:]) < threshold and len(log)>lastN and np.mean(log[-lastN:])>0.99:
         return False
     return True
 
@@ -65,6 +65,7 @@ def make_submission(test_csv,run=0,view=False):
             
         result = np.array(yiii_hats)[:,0,:]
         pred_label_kfolds = np.argmax(result,axis=1)
+        #TODO: take the most confident one?
         try:
             pred_label = statistics.mode(pred_label_kfolds)
         except:
@@ -83,7 +84,7 @@ def make_submission(test_csv,run=0,view=False):
     submission_df.to_csv('my_submission.csv',index=False)
     
     return submission_df
-           
+  
 train_csv = '~/Kaggle/mnist_newbie/digit-recognizer/train.csv'
 test_csv = '~/Kaggle/mnist_newbie/digit-recognizer/test.csv'
 
@@ -92,10 +93,12 @@ test_logs = []
 
 df = pd.read_csv(train_csv)
 from sklearn.model_selection import KFold
-kf = KFold(n_splits=3)
+kf = KFold(n_splits=10)
 splits = kf.get_n_splits(df)
 k_fold_index = 0
-run = 1
+run = 7
+n_epochs = 8
+batch_size = 30
 for train_index, test_index in kf.split(df): #each run is a k-fold
     
     pd_train = df.iloc[train_index]
@@ -106,17 +109,17 @@ for train_index, test_index in kf.split(df): #each run is a k-fold
     train_log = []
     test_log = [0.5]
     net = EvenDeeperCNN_VS()
-    n_batches = 550 #2500
+    n_batches = int((len(pd_train) / batch_size) * n_epochs) #2500
     lr = 1e-1
     device = torch.device("cpu")
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(net.parameters(), lr=lr)
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[1000,2000,3000,4000], gamma=0.1)
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[100,200,300,400], gamma=0.9)
     net.to(device)   
     
     for i in range(n_batches):
         net = net.train()
-        batch = batchatalize(pd_train, batch_size=300,flat=False, zoom=False)
+        batch = batchatalize(pd_train, batch_size=batch_size,flat=False, zoom=False)
         
         train_x = np.array([px_val for px_val, _ in batch])
         train_y = np.array([label for _, label in batch])
@@ -141,12 +144,12 @@ for train_index, test_index in kf.split(df): #each run is a k-fold
         broken_idx = np.where(pred_idx!=real_idx)[0].flatten()
         failed = [batch[idx] for idx in broken_idx]
         
-        print('Acc:', get_accuracy(pred_idx, real_idx),'|',i,'/',n_batches,'| N=',len(batch),k_fold_index)
+        #print('Acc:', get_accuracy(pred_idx, real_idx),'|',i,'/',n_batches,'| N=',len(batch),k_fold_index)
         train_log.append(get_accuracy(pred_idx, real_idx))
         
-        if i % 50 == 0:
+        if i % 25 == 0:
             net = net.eval()
-            test_batch = batchatalize(pd_test, batch_size=300, flat=False)
+            test_batch = batchatalize(pd_test, batch_size=500, flat=False)
             
             test_x = np.array([px_val for px_val, _ in test_batch])
             test_y = np.array([label for _, label in test_batch])
@@ -166,10 +169,9 @@ for train_index, test_index in kf.split(df): #each run is a k-fold
             real_idx = test_y.detach().cpu().numpy().flatten()
             test_acc = get_accuracy(pred_idx, real_idx)
             print('\n\nTEST accuracy:', test_acc,' | Best:',max(test_log))
+            print(i,'/',n_batches,'|',k_fold_index)
             test_log.append(test_acc)
-            if test_acc == 1.0:
-                break
-            if not still_patient(test_log, threshold=0.005, lastN=5):
+            if not still_patient(test_log, threshold=0.1, lastN=5):
                 break
     
     test_logs.append((train_log,test_log))
@@ -177,11 +179,11 @@ for train_index, test_index in kf.split(df): #each run is a k-fold
     torch.save(net.state_dict(), 'models/net_kfold_run_{}_{}_{}.torch'.format(run,final_acc,k_fold_index))
     k_fold_index += 1
 
+    
 for train_log, test_log in test_logs:
     plt.plot(test_log)   
     plt.show()
 
-    
     
     
 make_submission('digit-recognizer/test.csv', run=run, view=False)
