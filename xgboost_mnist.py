@@ -25,7 +25,7 @@ if __name__=="__main__":
     device = 'cpu'
     df = pd.read_csv(train_csv)
     df_test = pd.read_csv(test_csv)
-    df = df.sample(1000)
+    #df = df.sample(1000)
     
     
     net_kfold = EvenDeeperCNN_VS()
@@ -38,8 +38,9 @@ if __name__=="__main__":
     
     fake_csv = []
     total_train = len(df)
+    counter = 0
     for idx_row, row in df.iterrows():
-        print(idx_row,'/',total_train)
+        print(counter,'/',total_train)
         row_image = [i for i in row[1:]]
         npimage = row2np(row_image,flat=False)
         npimage = npimage[np.newaxis, np.newaxis,:]
@@ -50,13 +51,13 @@ if __name__=="__main__":
         fp = fp[0].tolist()
         outputs = []
         fake_csv.append([fp, row.label])
-        
+        counter += 1
 
 X = np.array([i[0] for i in fake_csv])
 y = np.array([i[1] for i in fake_csv])
 
 from sklearn.model_selection import train_test_split
-X_train, X_test, Y_train, Y_test = train_test_split(X, y, test_size=0.2)
+X_train, X_test, Y_train, Y_test = train_test_split(X, y, test_size=0.1)
 
 D_train = xgb.DMatrix(X_train, label=Y_train)
 D_test = xgb.DMatrix(X_test, label=Y_test)   
@@ -67,7 +68,7 @@ param = {
     'objective': 'multi:softprob',  
     'num_class': 10} 
 
-steps = 20  # The number of training iterations
+steps = 40  # The number of training iterations
 
 print('Lets train...')
 model = xgb.train(param, D_train, steps)
